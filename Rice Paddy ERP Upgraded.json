@@ -1,0 +1,1414 @@
+{
+  "name": "Rice & Paddy Trading ERP - Full System",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 🌾 Rice & Paddy Trading ERP System\n\n**Full Feature Set:**\n- Lorry Entries → Google Sheets\n- Cash Entries → Ledger\n- Mill Patti (PDF) Processing\n- Party & Mill Account Creation\n- Expense Tracking\n- Profit Calculations\n- Balance Queries\n- Daily/Weekly/Monthly Reports\n\n**Credentials preserved from original workflow.**",
+        "height": 280,
+        "width": 380,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [160, 140],
+      "typeVersion": 1,
+      "id": "49e1f03f-4550-4f6e-b990-b0969017207c",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "updates": ["message"],
+        "additionalFields": {}
+      },
+      "id": "1faaef8f-ecc1-4c46-a217-66874b660d70",
+      "name": "Telegram Webhook",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [128, 900],
+      "webhookId": "bd391c26-8283-4359-8ab1-0e5e1e60aa8b",
+      "credentials": {
+        "telegramApi": {
+          "id": "LyGY6XkxiF5RKACL",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "hours", "hoursInterval": 24, "triggerAtHour": 21 }]
+        }
+      },
+      "id": "sched-daily-001",
+      "name": "Daily Report Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [128, 1100]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "weeks", "weeksInterval": 1, "triggerAtDay": [1], "triggerAtHour": 8 }]
+        }
+      },
+      "id": "sched-weekly-001",
+      "name": "Weekly Report Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [128, 1260]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "months", "monthsInterval": 1, "triggerAtDayOfMonth": 1, "triggerAtHour": 8 }]
+        }
+      },
+      "id": "sched-monthly-001",
+      "name": "Monthly Report Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [128, 1420]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            { "id": "id-1", "name": "chatId", "value": "={{ $json.message.chat.id }}", "type": "string" },
+            { "id": "id-2", "name": "userId", "value": "={{ $json.message.from.id }}", "type": "string" },
+            { "id": "id-3", "name": "messageText", "value": "={{ $json.message.text || $json.message.caption || '' }}", "type": "string" },
+            { "id": "id-4", "name": "hasDocument", "value": "={{ !!$json.message.document }}", "type": "boolean" },
+            { "id": "id-5", "name": "hasPhoto", "value": "={{ !!$json.message.photo }}", "type": "boolean" },
+            { "id": "id-6", "name": "messageTimestamp", "value": "={{ new Date($json.message.date * 1000).toISOString() }}", "type": "string" },
+            { "id": "id-7", "name": "fileId", "value": "={{ $json.message.document ? $json.message.document.file_id : '' }}", "type": "string" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b4cbde11-43aa-4a81-ac6b-ac57fe71e9b3",
+      "name": "Workflow Configuration",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [352, 900]
+    },
+    {
+      "parameters": {
+        "jsCode": "const msg = $input.item.json.messageText || '';\nconst hasDoc = $input.item.json.hasDocument;\nconst hasPhoto = $input.item.json.hasPhoto;\n\nlet messageType = 'unknown';\n\nif (hasDoc || hasPhoto) {\n  messageType = 'mill_patti';\n} else if (/^add\\s+party\\s+/i.test(msg)) {\n  messageType = 'new_party';\n} else if (/^add\\s+mill\\s+/i.test(msg)) {\n  messageType = 'new_mill';\n} else if (/refuell?ed|driver\\s+bata|loading\\s+charge|unloading\\s+charge|office\\s+expense|fuel\\s+expense/i.test(msg)) {\n  messageType = 'expense_entry';\n} else if (/lorry|AP\\d{2}[A-Z]+\\d+|TS\\d{2}[A-Z]+\\d+|TN\\d{2}[A-Z]+\\d+|quintal|paddy|MTU|BPT|IR64|sona/i.test(msg)) {\n  messageType = 'lorry_entry';\n} else if (/paid|received|rupees?|₹|cash|bank|upi|neft|rtgs|settlement/i.test(msg)) {\n  messageType = 'cash_entry';\n} else if (/profit/i.test(msg)) {\n  messageType = 'profit_query';\n} else if (/balance|outstanding|pending|due/i.test(msg)) {\n  messageType = 'balance_query';\n} else if (/ledger|statement|history|account/i.test(msg)) {\n  messageType = 'ledger_query';\n} else if (/summary|report|total|expense/i.test(msg)) {\n  messageType = 'summary_query';\n} else if (/show|list|all|lorry|mill|party|kirai|cut/i.test(msg)) {\n  messageType = 'query';\n}\n\nreturn {\n  ...$input.item.json,\n  messageType,\n  rawMessage: msg,\n  todayDate: new Date().toISOString().split('T')[0]\n};"
+      },
+      "id": "06a68d4f-8bf0-4280-b229-391acde78484",
+      "name": "Parse & Classify Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [576, 900]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+                "conditions": [{ "leftValue": "={{ $json.messageType }}", "rightValue": "lorry_entry", "operator": { "type": "string", "operation": "equals" } }],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Lorry Entry"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+                "conditions": [{ "leftValue": "={{ $json.messageType }}", "rightValue": "cash_entry", "operator": { "type": "string", "operation": "equals" } }],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Cash Entry"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+                "conditions": [{ "leftValue": "={{ $json.messageType }}", "rightValue": "mill_patti", "operator": { "type": "string", "operation": "equals" } }],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Mill Patti"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+                "conditions": [{ "leftValue": "={{ $json.messageType }}", "rightValue": "new_party", "operator": { "type": "string", "operation": "equals" } }],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "New Party"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+                "conditions": [{ "leftValue": "={{ $json.messageType }}", "rightValue": "new_mill", "operator": { "type": "string", "operation": "equals" } }],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "New Mill"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+                "conditions": [{ "leftValue": "={{ $json.messageType }}", "rightValue": "expense_entry", "operator": { "type": "string", "operation": "equals" } }],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Expense"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+                "conditions": [{ "leftValue": "={{ $json.messageType }}", "rightValue": "profit_query", "operator": { "type": "string", "operation": "equals" } }],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Profit Query"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+                "conditions": [{ "leftValue": "={{ $json.messageType }}", "rightValue": "balance_query", "operator": { "type": "string", "operation": "equals" } }],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Balance Query"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+                "conditions": [
+                  { "leftValue": "={{ $json.messageType }}", "rightValue": "ledger_query", "operator": { "type": "string", "operation": "equals" } },
+                  { "leftValue": "={{ $json.messageType }}", "rightValue": "summary_query", "operator": { "type": "string", "operation": "equals" } },
+                  { "leftValue": "={{ $json.messageType }}", "rightValue": "query", "operator": { "type": "string", "operation": "equals" } }
+                ],
+                "combinator": "or"
+              },
+              "renameOutput": true,
+              "outputKey": "General Query"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ed9c3c83-9f6b-4139-bd32-8e7e2e2446a7",
+      "name": "Route by Message Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [800, 900]
+    },
+    {
+      "parameters": {
+        "model": { "__rl": true, "mode": "list", "value": "gpt-4.1-mini" },
+        "builtInTools": {},
+        "options": {}
+      },
+      "id": "8b0b87ad-23de-41e2-ab74-18952303afea",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [1040, 560],
+      "credentials": {
+        "openAiApi": {
+          "id": "1GiYnd69dXFFwzhX",
+          "name": "n8n free OpenAI API credits"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionKey": "={{ $('Workflow Configuration').item.json.chatId }}",
+        "contextWindowLength": 10
+      },
+      "id": "8797e334-1477-44f7-87bf-2f3df5a2b811",
+      "name": "Conversation Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [1160, 560]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.rawMessage }}\n\nToday's date: {{ $json.todayDate }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are a data extraction assistant for a rice and paddy trading business. Extract complete lorry entry details.\n\nExtract ALL of these fields:\n- date: Date of lorry entry (YYYY-MM-DD). Use today if not mentioned.\n- lorryNumber: Vehicle registration number (e.g. AP39T1234, TS09AB1234)\n- variety: Paddy variety (e.g. MTU-702, BPT, IR64, Sona Masuri). Default 'MTU-702' if not mentioned.\n- fromParty: Supplier/party name exactly as mentioned\n- toMill: Mill name exactly as mentioned\n- quantity: Quantity in quintals (number only)\n- rate: Rate per quintal in rupees (number only)\n- amount: Calculate as quantity * rate\n- notes: Any other relevant information\n\nReturn ONLY valid JSON. If a field is not mentioned set it to null."
+        }
+      },
+      "id": "fc069e14-2807-4e58-a78c-8ded699a9491",
+      "name": "AI Agent - Extract Lorry Entry",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [1040, 740]
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n\t\"type\": \"object\",\n\t\"properties\": {\n\t\t\"date\": { \"type\": \"string\", \"description\": \"Date in YYYY-MM-DD\" },\n\t\t\"lorryNumber\": { \"type\": \"string\", \"description\": \"Vehicle registration number\" },\n\t\t\"variety\": { \"type\": \"string\", \"description\": \"Paddy variety\" },\n\t\t\"fromParty\": { \"type\": \"string\", \"description\": \"Supplier party name\" },\n\t\t\"toMill\": { \"type\": \"string\", \"description\": \"Mill name\" },\n\t\t\"quantity\": { \"type\": \"number\", \"description\": \"Quantity in quintals\" },\n\t\t\"rate\": { \"type\": \"number\", \"description\": \"Rate per quintal\" },\n\t\t\"amount\": { \"type\": \"number\", \"description\": \"Total amount\" },\n\t\t\"notes\": { \"type\": \"string\" }\n\t},\n\t\"required\": [\"lorryNumber\", \"fromParty\", \"quantity\"]\n}"
+      },
+      "id": "de5a15d8-8c96-46c9-bb10-b497dae65d8d",
+      "name": "Structured Output Parser - Lorry",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [1280, 740]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $vars.SPREADSHEET_ID || 'YOUR_GOOGLE_SPREADSHEET_ID' }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "LORRY_ENTRIES" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "date": "={{ $json.output.date || $('Parse & Classify Message').item.json.todayDate }}",
+            "lorryNumber": "={{ $json.output.lorryNumber }}",
+            "variety": "={{ $json.output.variety }}",
+            "fromParty": "={{ $json.output.fromParty }}",
+            "toMill": "={{ $json.output.toMill }}",
+            "quantity": "={{ $json.output.quantity }}",
+            "rate": "={{ $json.output.rate }}",
+            "amount": "={{ $json.output.amount || ($json.output.quantity * $json.output.rate) }}",
+            "notes": "={{ $json.output.notes }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "91f93d2b-7cd5-4247-964f-7c6282fb5209",
+      "name": "Store Lorry Entry",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1500, 740],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GSHEETS_CRED_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Workflow Configuration').item.json.chatId }}",
+        "text": "=✅ Lorry Entry Recorded\n\n🚛 Lorry: {{ $('AI Agent - Extract Lorry Entry').item.json.output.lorryNumber }}\n🌾 Variety: {{ $('AI Agent - Extract Lorry Entry').item.json.output.variety || 'MTU-702' }}\n👤 From: {{ $('AI Agent - Extract Lorry Entry').item.json.output.fromParty }}\n🏭 To Mill: {{ $('AI Agent - Extract Lorry Entry').item.json.output.toMill }}\n📦 Quantity: {{ $('AI Agent - Extract Lorry Entry').item.json.output.quantity }} Quintals\n💰 Rate: ₹{{ $('AI Agent - Extract Lorry Entry').item.json.output.rate }}/Q\n💵 Amount: ₹{{ $('AI Agent - Extract Lorry Entry').item.json.output.amount || ($('AI Agent - Extract Lorry Entry').item.json.output.quantity * $('AI Agent - Extract Lorry Entry').item.json.output.rate) }}\n📅 Date: {{ $('AI Agent - Extract Lorry Entry').item.json.output.date }}",
+        "additionalFields": {}
+      },
+      "id": "cdce033c-2780-46c5-aeb1-77cd9eb2c147",
+      "name": "Send Lorry Confirmation",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1720, 740],
+      "credentials": {
+        "telegramApi": {
+          "id": "LyGY6XkxiF5RKACL",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.rawMessage }}\n\nToday's date: {{ $json.todayDate }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are a financial transaction assistant for a rice and paddy trading business. Extract cash entry details.\n\nExtract:\n- transactionType: 'paid' or 'received'\n- amount: Transaction amount in rupees (number only, no commas)\n- accountType: 'party', 'mill', or 'expense'\n- accountName: Exact name of party or mill\n- paymentMethod: 'cash', 'bank', or 'upi'\n- purpose: Description/purpose of transaction\n- date: Transaction date (YYYY-MM-DD). Use today if not mentioned.\n- notes: Any additional info\n\nReturn ONLY valid JSON."
+        }
+      },
+      "id": "4d0ccf10-3a9e-4c08-ad10-d6ab55dd9f41",
+      "name": "AI Agent - Extract Cash Entry",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [1040, 1000]
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n\t\"type\": \"object\",\n\t\"properties\": {\n\t\t\"transactionType\": { \"type\": \"string\", \"enum\": [\"paid\", \"received\"] },\n\t\t\"amount\": { \"type\": \"number\" },\n\t\t\"accountType\": { \"type\": \"string\", \"enum\": [\"party\", \"mill\", \"expense\"] },\n\t\t\"accountName\": { \"type\": \"string\" },\n\t\t\"paymentMethod\": { \"type\": \"string\", \"enum\": [\"cash\", \"bank\", \"upi\"] },\n\t\t\"purpose\": { \"type\": \"string\" },\n\t\t\"date\": { \"type\": \"string\" },\n\t\t\"notes\": { \"type\": \"string\" }\n\t},\n\t\"required\": [\"transactionType\", \"amount\", \"accountName\"]\n}"
+      },
+      "id": "32f2d96f-e73f-41ff-b7b6-60aca505c470",
+      "name": "Structured Output Parser - Cash",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [1280, 1000]
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $input.item.json.output;\nconst today = new Date().toISOString().split('T')[0];\nconst entryId = 'LEDG-' + Date.now();\n\nreturn {\n  entryId,\n  date: d.date || today,\n  accountType: d.accountType || 'party',\n  accountName: d.accountName,\n  transactionType: d.transactionType === 'received' ? 'credit' : 'debit',\n  amount: d.amount,\n  category: 'cash',\n  referenceType: 'cash_entry',\n  referenceId: entryId,\n  notes: d.purpose || d.notes || '',\n  _cashData: d\n};"
+      },
+      "id": "cash-ledger-map-001",
+      "name": "Map Cash to Ledger",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1500, 1000]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $vars.SPREADSHEET_ID || 'YOUR_GOOGLE_SPREADSHEET_ID' }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "LEDGER" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "entryId": "={{ $json.entryId }}",
+            "date": "={{ $json.date }}",
+            "accountType": "={{ $json.accountType }}",
+            "accountName": "={{ $json.accountName }}",
+            "transactionType": "={{ $json.transactionType }}",
+            "amount": "={{ $json.amount }}",
+            "category": "={{ $json.category }}",
+            "referenceType": "={{ $json.referenceType }}",
+            "referenceId": "={{ $json.referenceId }}",
+            "notes": "={{ $json.notes }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "store-ledger-cash-001",
+      "name": "Store Cash in Ledger",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1720, 1000],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GSHEETS_CRED_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $vars.SPREADSHEET_ID || 'YOUR_GOOGLE_SPREADSHEET_ID' }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "PARTIES" },
+        "options": {}
+      },
+      "id": "read-parties-cash-001",
+      "name": "Read Parties for Balance Update",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1940, 1000],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GSHEETS_CRED_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Workflow Configuration').item.json.chatId }}",
+        "text": "=✅ Cash Entry Recorded\n\n{{ $('AI Agent - Extract Cash Entry').item.json.output.transactionType === 'received' ? '💰 Received' : '💸 Paid' }}: ₹{{ $('AI Agent - Extract Cash Entry').item.json.output.amount }}\n👤 Account: {{ $('AI Agent - Extract Cash Entry').item.json.output.accountName }}\n🏷️ Type: {{ $('AI Agent - Extract Cash Entry').item.json.output.accountType || 'party' }}\n💳 Method: {{ ($('AI Agent - Extract Cash Entry').item.json.output.paymentMethod || 'cash').toUpperCase() }}\n📝 Purpose: {{ $('AI Agent - Extract Cash Entry').item.json.output.purpose || '-' }}\n📅 Date: {{ $('AI Agent - Extract Cash Entry').item.json.output.date }}",
+        "additionalFields": {}
+      },
+      "id": "26aa832a-7d0c-41a1-bea1-d171f7ea2c3f",
+      "name": "Send Cash Confirmation",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [2160, 1000],
+      "credentials": {
+        "telegramApi": {
+          "id": "LyGY6XkxiF5RKACL",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "id": "4c899a16-60b2-4004-8c9a-e1df27117c92",
+      "name": "Extract Mill Patti PDF",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [1040, 1260]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Extract all mill patti data from this document text:\n\n{{ $json.text }}\n\nToday's date: {{ $('Parse & Classify Message').item.json.todayDate }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are a mill patti document processor for a rice and paddy trading business.\n\nExtract from the document:\n- date: Document date (YYYY-MM-DD)\n- millName: Name of the mill\n- partyName: Name of the party/farmer\n- rows: Array of entries, each with:\n  - lorryNumber: vehicle number\n  - quantity: quintals\n  - grossAmount: gross amount before deductions\n  - kirai: kirai charges\n  - cutPerQuintal: cut per quintal amount\n  - cutAmount: total cut amount\n  - netAmount: net payable amount\n\nReturn ONLY valid JSON."
+        }
+      },
+      "id": "92e8b498-2b11-4c8a-8c83-bd5584ef1556",
+      "name": "AI Agent - Process Mill Patti",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [1280, 1260]
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n\t\"type\": \"object\",\n\t\"properties\": {\n\t\t\"date\": { \"type\": \"string\" },\n\t\t\"millName\": { \"type\": \"string\" },\n\t\t\"partyName\": { \"type\": \"string\" },\n\t\t\"rows\": {\n\t\t\t\"type\": \"array\",\n\t\t\t\"items\": {\n\t\t\t\t\"type\": \"object\",\n\t\t\t\t\"properties\": {\n\t\t\t\t\t\"lorryNumber\": { \"type\": \"string\" },\n\t\t\t\t\t\"quantity\": { \"type\": \"number\" },\n\t\t\t\t\t\"grossAmount\": { \"type\": \"number\" },\n\t\t\t\t\t\"kirai\": { \"type\": \"number\" },\n\t\t\t\t\t\"cutPerQuintal\": { \"type\": \"number\" },\n\t\t\t\t\t\"cutAmount\": { \"type\": \"number\" },\n\t\t\t\t\t\"netAmount\": { \"type\": \"number\" }\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t},\n\t\"required\": [\"millName\", \"partyName\", \"rows\"]\n}"
+      },
+      "id": "2f43f580-7c85-487b-947e-bbabf67599e7",
+      "name": "Structured Output Parser - Mill Patti",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [1500, 1260]
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $input.item.json.output;\nconst today = new Date().toISOString().split('T')[0];\nconst rows = d.rows || [];\n\nconst sheetRows = rows.map((r, i) => ({\n  date: d.date || today,\n  millName: d.millName,\n  partyName: d.partyName,\n  lorryNumber: r.lorryNumber || '',\n  quantity: r.quantity || 0,\n  grossAmount: r.grossAmount || 0,\n  kirai: r.kirai || 0,\n  cutPerQuintal: r.cutPerQuintal || 0,\n  cutAmount: r.cutAmount || 0,\n  netAmount: r.netAmount || 0\n}));\n\nconst totalNet = rows.reduce((sum, r) => sum + (r.netAmount || 0), 0);\nconst totalGross = rows.reduce((sum, r) => sum + (r.grossAmount || 0), 0);\nconst totalKirai = rows.reduce((sum, r) => sum + (r.kirai || 0), 0);\nconst totalCut = rows.reduce((sum, r) => sum + (r.cutAmount || 0), 0);\n\nreturn {\n  sheetRows,\n  summary: { date: d.date || today, millName: d.millName, partyName: d.partyName, totalNet, totalGross, totalKirai, totalCut, rowCount: rows.length },\n  ledgerEntry: {\n    entryId: 'PATTI-' + Date.now(),\n    date: d.date || today,\n    accountType: 'mill',\n    accountName: d.millName,\n    transactionType: 'credit',\n    amount: totalNet,\n    category: 'mill_patti',\n    referenceType: 'mill_patti',\n    referenceId: 'PATTI-' + Date.now(),\n    notes: `Mill Patti from ${d.millName} for ${d.partyName}. ${rows.length} lorries. Gross:${totalGross} Kirai:${totalKirai} Cut:${totalCut}`\n  }\n};"
+      },
+      "id": "patti-process-001",
+      "name": "Process Mill Patti Rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1720, 1260]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $vars.SPREADSHEET_ID || 'YOUR_GOOGLE_SPREADSHEET_ID' }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "MILL_PATTI" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "date": "={{ $json.sheetRows[0] ? $json.sheetRows[0].date : $json.summary.date }}",
+            "millName": "={{ $json.summary.millName }}",
+            "partyName": "={{ $json.summary.partyName }}",
+            "lorryNumber": "={{ $json.sheetRows.map(r => r.lorryNumber).join(', ') }}",
+            "quantity": "={{ $json.sheetRows.reduce((s, r) => s + r.quantity, 0) }}",
+            "grossAmount": "={{ $json.summary.totalGross }}",
+            "kirai": "={{ $json.summary.totalKirai }}",
+            "cutPerQuintal": "={{ $json.sheetRows[0] ? $json.sheetRows[0].cutPerQuintal : 0 }}",
+            "cutAmount": "={{ $json.summary.totalCut }}",
+            "netAmount": "={{ $json.summary.totalNet }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "store-patti-001",
+      "name": "Store Mill Patti Data",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1940, 1200],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GSHEETS_CRED_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $vars.SPREADSHEET_ID || 'YOUR_GOOGLE_SPREADSHEET_ID' }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "LEDGER" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "entryId": "={{ $json.ledgerEntry.entryId }}",
+            "date": "={{ $json.ledgerEntry.date }}",
+            "accountType": "={{ $json.ledgerEntry.accountType }}",
+            "accountName": "={{ $json.ledgerEntry.accountName }}",
+            "transactionType": "={{ $json.ledgerEntry.transactionType }}",
+            "amount": "={{ $json.ledgerEntry.amount }}",
+            "category": "={{ $json.ledgerEntry.category }}",
+            "referenceType": "={{ $json.ledgerEntry.referenceType }}",
+            "referenceId": "={{ $json.ledgerEntry.referenceId }}",
+            "notes": "={{ $json.ledgerEntry.notes }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "store-patti-ledger-001",
+      "name": "Store Patti Ledger Entry",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1940, 1340],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GSHEETS_CRED_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Workflow Configuration').item.json.chatId }}",
+        "text": "=✅ Mill Patti Processed\n\n🏭 Mill: {{ $('Process Mill Patti Rows').item.json.summary.millName }}\n👤 Party: {{ $('Process Mill Patti Rows').item.json.summary.partyName }}\n🚛 Lorries: {{ $('Process Mill Patti Rows').item.json.summary.rowCount }}\n📦 Gross Amount: ₹{{ $('Process Mill Patti Rows').item.json.summary.totalGross }}\n✂️ Total Kirai: ₹{{ $('Process Mill Patti Rows').item.json.summary.totalKirai }}\n💔 Total Cut: ₹{{ $('Process Mill Patti Rows').item.json.summary.totalCut }}\n✅ Net Amount: ₹{{ $('Process Mill Patti Rows').item.json.summary.totalNet }}\n📅 Date: {{ $('Process Mill Patti Rows').item.json.summary.date }}\n\n_Ledger updated automatically_",
+        "additionalFields": {}
+      },
+      "id": "4ea70d07-bece-4986-ace7-f9e5658d4cb3",
+      "name": "Send Mill Patti Confirmation",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [2160, 1260],
+      "credentials": {
+        "telegramApi": {
+          "id": "LyGY6XkxiF5RKACL",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const msg = $input.item.json.rawMessage || '';\nconst match = msg.match(/add\\s+party\\s+(.+)/i);\nconst partyName = match ? match[1].trim() : '';\nconst today = new Date().toISOString().split('T')[0];\n\nreturn {\n  partyName,\n  openingBalance: 0,\n  currentBalance: 0,\n  createdDate: today,\n  status: 'active',\n  chatId: $input.item.json.chatId\n};"
+      },
+      "id": "extract-party-001",
+      "name": "Extract Party Name",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1040, 1520]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $vars.SPREADSHEET_ID || 'YOUR_GOOGLE_SPREADSHEET_ID' }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "PARTIES" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "partyName": "={{ $json.partyName }}",
+            "openingBalance": "={{ $json.openingBalance }}",
+            "currentBalance": "={{ $json.currentBalance }}",
+            "createdDate": "={{ $json.createdDate }}",
+            "status": "={{ $json.status }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "store-party-001",
+      "name": "Store New Party",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1280, 1520],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GSHEETS_CRED_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Workflow Configuration').item.json.chatId }}",
+        "text": "=✅ Party Account Created\n\n👤 Party: {{ $('Extract Party Name').item.json.partyName }}\n💰 Opening Balance: ₹0\n📊 Status: Active\n📅 Created: {{ $('Extract Party Name').item.json.createdDate }}\n\n_Party is ready for transactions._",
+        "additionalFields": {}
+      },
+      "id": "send-party-confirm-001",
+      "name": "Send Party Confirmation",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1500, 1520],
+      "credentials": {
+        "telegramApi": {
+          "id": "LyGY6XkxiF5RKACL",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const msg = $input.item.json.rawMessage || '';\nconst match = msg.match(/add\\s+mill\\s+(.+)/i);\nconst millName = match ? match[1].trim() : '';\nconst today = new Date().toISOString().split('T')[0];\n\nreturn {\n  millName,\n  openingBalance: 0,\n  currentBalance: 0,\n  createdDate: today,\n  status: 'active',\n  chatId: $input.item.json.chatId\n};"
+      },
+      "id": "extract-mill-001",
+      "name": "Extract Mill Name",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1040, 1680]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $vars.SPREADSHEET_ID || 'YOUR_GOOGLE_SPREADSHEET_ID' }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "MILLS" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "millName": "={{ $json.millName }}",
+            "openingBalance": "={{ $json.openingBalance }}",
+            "currentBalance": "={{ $json.currentBalance }}",
+            "createdDate": "={{ $json.createdDate }}",
+            "status": "={{ $json.status }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "store-mill-001",
+      "name": "Store New Mill",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1280, 1680],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GSHEETS_CRED_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Workflow Configuration').item.json.chatId }}",
+        "text": "=✅ Mill Account Created\n\n🏭 Mill: {{ $('Extract Mill Name').item.json.millName }}\n💰 Opening Balance: ₹0\n📊 Status: Active\n📅 Created: {{ $('Extract Mill Name').item.json.createdDate }}\n\n_Mill is ready for transactions._",
+        "additionalFields": {}
+      },
+      "id": "send-mill-confirm-001",
+      "name": "Send Mill Confirmation",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1500, 1680],
+      "credentials": {
+        "telegramApi": {
+          "id": "LyGY6XkxiF5RKACL",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.rawMessage }}\n\nToday: {{ $json.todayDate }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are an expense extraction assistant for a rice and paddy trading business.\n\nExtract:\n- date: Date (YYYY-MM-DD). Use today if not mentioned.\n- expenseType: Type - 'fuel', 'driver_bata', 'loading', 'unloading', 'office', 'other'\n- vehicleNumber: Vehicle number if mentioned (else null)\n- amount: Amount in rupees (number only)\n- partyName: Party or person involved if mentioned (else null)\n- notes: Any additional info\n\nReturn ONLY valid JSON."
+        }
+      },
+      "id": "ai-expense-001",
+      "name": "AI Agent - Extract Expense",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [1040, 1860]
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n\t\"type\": \"object\",\n\t\"properties\": {\n\t\t\"date\": { \"type\": \"string\" },\n\t\t\"expenseType\": { \"type\": \"string\" },\n\t\t\"vehicleNumber\": { \"type\": \"string\" },\n\t\t\"amount\": { \"type\": \"number\" },\n\t\t\"partyName\": { \"type\": \"string\" },\n\t\t\"notes\": { \"type\": \"string\" }\n\t},\n\t\"required\": [\"expenseType\", \"amount\"]\n}"
+      },
+      "id": "parser-expense-001",
+      "name": "Structured Output Parser - Expense",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [1280, 1860]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $vars.SPREADSHEET_ID || 'YOUR_GOOGLE_SPREADSHEET_ID' }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "EXPENSES" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "date": "={{ $json.output.date || new Date().toISOString().split('T')[0] }}",
+            "expenseType": "={{ $json.output.expenseType }}",
+            "vehicleNumber": "={{ $json.output.vehicleNumber }}",
+            "amount": "={{ $json.output.amount }}",
+            "partyName": "={{ $json.output.partyName }}",
+            "notes": "={{ $json.output.notes }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "store-expense-001",
+      "name": "Store Expense",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1500, 1800],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GSHEETS_CRED_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $vars.SPREADSHEET_ID || 'YOUR_GOOGLE_SPREADSHEET_ID' }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "LEDGER" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "entryId": "=EXP-{{ Date.now() }}",
+            "date": "={{ $('AI Agent - Extract Expense').item.json.output.date || new Date().toISOString().split('T')[0] }}",
+            "accountType": "expense",
+            "accountName": "={{ $('AI Agent - Extract Expense').item.json.output.expenseType }}",
+            "transactionType": "debit",
+            "amount": "={{ $('AI Agent - Extract Expense').item.json.output.amount }}",
+            "category": "expense",
+            "referenceType": "expense",
+            "referenceId": "={{ $('AI Agent - Extract Expense').item.json.output.vehicleNumber || 'EXP' }}",
+            "notes": "={{ $('AI Agent - Extract Expense').item.json.output.expenseType + ': ' + ($('AI Agent - Extract Expense').item.json.output.notes || '') }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "store-expense-ledger-001",
+      "name": "Store Expense in Ledger",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1500, 1940],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GSHEETS_CRED_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Workflow Configuration').item.json.chatId }}",
+        "text": "=✅ Expense Recorded\n\n🧾 Type: {{ $('AI Agent - Extract Expense').item.json.output.expenseType }}\n{{ $('AI Agent - Extract Expense').item.json.output.vehicleNumber ? '🚛 Vehicle: ' + $('AI Agent - Extract Expense').item.json.output.vehicleNumber + '\\n' : '' }}💸 Amount: ₹{{ $('AI Agent - Extract Expense').item.json.output.amount }}\n{{ $('AI Agent - Extract Expense').item.json.output.partyName ? '👤 Party: ' + $('AI Agent - Extract Expense').item.json.output.partyName + '\\n' : '' }}📅 Date: {{ $('AI Agent - Extract Expense').item.json.output.date }}\n\n_Expense debited in ledger._",
+        "additionalFields": {}
+      },
+      "id": "send-expense-confirm-001",
+      "name": "Send Expense Confirmation",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1720, 1860],
+      "credentials": {
+        "telegramApi": {
+          "id": "LyGY6XkxiF5RKACL",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $vars.SPREADSHEET_ID || 'YOUR_GOOGLE_SPREADSHEET_ID' }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "LEDGER" },
+        "options": {}
+      },
+      "id": "read-ledger-profit-001",
+      "name": "Read Ledger for Profit",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1040, 2100],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GSHEETS_CRED_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $vars.SPREADSHEET_ID || 'YOUR_GOOGLE_SPREADSHEET_ID' }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "EXPENSES" },
+        "options": {}
+      },
+      "id": "read-expenses-profit-001",
+      "name": "Read Expenses for Profit",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1260, 2100],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GSHEETS_CRED_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const allItems = $input.all();\nconst ledgerItems = allItems.filter(i => i.json.entryId);\nconst expenseItems = allItems.filter(i => i.json.expenseType);\n\nconst msg = $('Parse & Classify Message').item.json.rawMessage || '';\nconst today = new Date();\ntoday.setHours(0, 0, 0, 0);\n\nlet startDate, endDate, label;\n\nif (/today/i.test(msg)) {\n  startDate = today; endDate = new Date(); label = 'Today';\n} else if (/yesterday/i.test(msg)) {\n  const y = new Date(today); y.setDate(y.getDate() - 1);\n  startDate = y; endDate = new Date(y); endDate.setHours(23, 59, 59); label = 'Yesterday';\n} else if (/this\\s+week/i.test(msg)) {\n  const w = new Date(today); w.setDate(w.getDate() - w.getDay());\n  startDate = w; endDate = new Date(); label = 'This Week';\n} else if (/this\\s+month/i.test(msg)) {\n  const m = new Date(today.getFullYear(), today.getMonth(), 1);\n  startDate = m; endDate = new Date(); label = 'This Month';\n} else if (/this\\s+year/i.test(msg)) {\n  const yr = new Date(today.getFullYear(), 0, 1);\n  startDate = yr; endDate = new Date(); label = 'This Year';\n} else {\n  startDate = today; endDate = new Date(); label = 'Today';\n}\n\nconst filtered = ledgerItems.filter(i => {\n  const d = new Date(i.json.date);\n  return d >= startDate && d <= endDate;\n});\n\nconst totalCredits = filtered.filter(i => i.json.transactionType === 'credit').reduce((s, i) => s + Number(i.json.amount || 0), 0);\nconst totalDebits = filtered.filter(i => i.json.transactionType === 'debit').reduce((s, i) => s + Number(i.json.amount || 0), 0);\n\nconst filteredExp = expenseItems.filter(i => {\n  const d = new Date(i.json.date);\n  return d >= startDate && d <= endDate;\n});\nconst totalExpenses = filteredExp.reduce((s, i) => s + Number(i.json.amount || 0), 0);\n\nconst profit = totalCredits - totalDebits - totalExpenses;\n\nreturn {\n  label,\n  totalCredits,\n  totalDebits,\n  totalExpenses,\n  profit\n};"
+      },
+      "id": "calc-profit-001",
+      "name": "Calculate Profit",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1480, 2100]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Workflow Configuration').item.json.chatId }}",
+        "text": "=📊 Profit Report — {{ $json.label }}\n\n💰 Total Credits: ₹{{ $json.totalCredits.toLocaleString('en-IN') }}\n💸 Total Debits: ₹{{ $json.totalDebits.toLocaleString('en-IN') }}\n🧾 Expenses: ₹{{ $json.totalExpenses.toLocaleString('en-IN') }}\n\n─────────────────\n{{ $json.profit >= 0 ? '📈 Net Profit: ₹' + $json.profit.toLocaleString('en-IN') : '📉 Net Loss: ₹' + Math.abs($json.profit).toLocaleString('en-IN') }}",
+        "additionalFields": {}
+      },
+      "id": "send-profit-001",
+      "name": "Send Profit Report",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1700, 2100],
+      "credentials": {
+        "telegramApi": {
+          "id": "LyGY6XkxiF5RKACL",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $vars.SPREADSHEET_ID || 'YOUR_GOOGLE_SPREADSHEET_ID' }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "LEDGER" },
+        "options": {}
+      },
+      "id": "read-ledger-balance-001",
+      "name": "Read Ledger for Balance",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1040, 2320],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GSHEETS_CRED_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst msg = $('Parse & Classify Message').item.json.rawMessage || '';\n\nconst nameMatch = msg.match(/balance\\s+of\\s+(.+)|(.+)\\s+balance|outstanding\\s+(.+)|pending\\s+(.+)/i);\nconst accountName = nameMatch ? (nameMatch[1] || nameMatch[2] || nameMatch[3] || nameMatch[4] || '').trim() : '';\n\nconst ledgerRows = items.filter(i => i.json.entryId);\n\nlet result = [];\n\nif (accountName) {\n  const filtered = ledgerRows.filter(i => i.json.accountName && i.json.accountName.toLowerCase().includes(accountName.toLowerCase()));\n  const credits = filtered.filter(i => i.json.transactionType === 'credit').reduce((s, i) => s + Number(i.json.amount || 0), 0);\n  const debits = filtered.filter(i => i.json.transactionType === 'debit').reduce((s, i) => s + Number(i.json.amount || 0), 0);\n  const balance = credits - debits;\n  result = [{ accountName, credits, debits, balance, type: filtered[0] ? filtered[0].json.accountType : 'unknown' }];\n} else {\n  const grouped = {};\n  for (const i of ledgerRows) {\n    const name = i.json.accountName;\n    if (!grouped[name]) grouped[name] = { accountName: name, type: i.json.accountType, credits: 0, debits: 0 };\n    if (i.json.transactionType === 'credit') grouped[name].credits += Number(i.json.amount || 0);\n    else grouped[name].debits += Number(i.json.amount || 0);\n  }\n  result = Object.values(grouped).map(g => ({ ...g, balance: g.credits - g.debits })).filter(g => g.balance !== 0);\n}\n\nreturn { result, accountName, isSpecific: !!accountName };"
+      },
+      "id": "calc-balance-001",
+      "name": "Calculate Balance",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1260, 2320]
+    },
+    {
+      "parameters": {
+        "jsCode": "const { result, accountName, isSpecific } = $input.item.json;\n\nlet text = '';\n\nif (isSpecific && result.length > 0) {\n  const r = result[0];\n  const balLabel = r.balance >= 0 ? 'Credit' : 'Debit';\n  text = `💰 Balance Report\\n\\n${r.type === 'mill' ? '🏭' : '👤'} ${r.accountName}\\n\\n`;\n  text += `Total Credits: ₹${r.credits.toLocaleString('en-IN')}\\n`;\n  text += `Total Debits: ₹${r.debits.toLocaleString('en-IN')}\\n`;\n  text += `─────────────────\\n`;\n  text += `Current Balance: ₹${Math.abs(r.balance).toLocaleString('en-IN')} ${balLabel}`;\n} else if (!isSpecific && result.length > 0) {\n  text = `📊 Outstanding Balances\\n\\n`;\n  const parties = result.filter(r => r.type === 'party' && r.balance !== 0);\n  const mills = result.filter(r => r.type === 'mill' && r.balance !== 0);\n  if (parties.length > 0) {\n    text += `👤 Parties:\\n`;\n    parties.forEach(p => { text += `  ${p.accountName}: ₹${Math.abs(p.balance).toLocaleString('en-IN')} ${p.balance >= 0 ? 'Cr' : 'Dr'}\\n`; });\n  }\n  if (mills.length > 0) {\n    text += `\\n🏭 Mills:\\n`;\n    mills.forEach(m => { text += `  ${m.accountName}: ₹${Math.abs(m.balance).toLocaleString('en-IN')} ${m.balance >= 0 ? 'Cr' : 'Dr'}\\n`; });\n  }\n} else {\n  text = `⚠️ No balance data found${accountName ? ' for ' + accountName : ''}.`;\n}\n\nreturn { balanceText: text };"
+      },
+      "id": "format-balance-001",
+      "name": "Format Balance Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1480, 2320]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Workflow Configuration').item.json.chatId }}",
+        "text": "={{ $json.balanceText }}",
+        "additionalFields": {}
+      },
+      "id": "send-balance-001",
+      "name": "Send Balance Report",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1700, 2320],
+      "credentials": {
+        "telegramApi": {
+          "id": "LyGY6XkxiF5RKACL",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $vars.SPREADSHEET_ID || 'YOUR_GOOGLE_SPREADSHEET_ID' }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "LEDGER" },
+        "options": {}
+      },
+      "id": "read-ledger-query-001",
+      "name": "Read All Data for Query",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1040, 2500],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GSHEETS_CRED_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $vars.SPREADSHEET_ID || 'YOUR_GOOGLE_SPREADSHEET_ID' }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "LORRY_ENTRIES" },
+        "options": {}
+      },
+      "id": "read-lorry-query-001",
+      "name": "Read Lorry Data for Query",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1260, 2500],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GSHEETS_CRED_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=User Query: {{ $('Parse & Classify Message').item.json.rawMessage }}\n\nToday: {{ $('Parse & Classify Message').item.json.todayDate }}\n\nLEDGER DATA (JSON):\n{{ JSON.stringify($('Read All Data for Query').all().map(i => i.json)) }}\n\nLORRY DATA (JSON):\n{{ JSON.stringify($('Read Lorry Data for Query').all().map(i => i.json)) }}",
+        "options": {
+          "systemMessage": "You are a business intelligence assistant for a rice and paddy trading business.\n\nYou have access to complete ledger and lorry data in the prompt. Analyze it carefully and answer the user's query.\n\nCapabilities:\n- Ledger statements for any party or mill\n- Lorry histories (from/to any party or mill)\n- Total paddy received/sent in any period\n- Expense summaries\n- Settlement histories\n- Top parties and mills by volume\n- Kirai and cut totals\n- Account statements between dates\n\nRules:\n- Never guess. Calculate from provided data.\n- Use Indian number formatting (₹1,00,000 etc.)\n- Use emojis for professional formatting.\n- Be concise and clear.\n- If data doesn't exist, say so politely."
+        }
+      },
+      "id": "2e6fc113-84b6-4cab-8255-d6e9fd7d237c",
+      "name": "AI Agent - Answer Query",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [1480, 2500]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Workflow Configuration').item.json.chatId }}",
+        "text": "={{ $json.output }}",
+        "additionalFields": {}
+      },
+      "id": "c67c7447-fe05-40ce-8fbb-860cca8c970e",
+      "name": "Send Query Response",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1700, 2500],
+      "credentials": {
+        "telegramApi": {
+          "id": "LyGY6XkxiF5RKACL",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $vars.SPREADSHEET_ID || 'YOUR_GOOGLE_SPREADSHEET_ID' }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "LEDGER" },
+        "options": {}
+      },
+      "id": "read-ledger-daily-001",
+      "name": "Read Ledger for Daily Report",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [380, 1100],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GSHEETS_CRED_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $vars.SPREADSHEET_ID || 'YOUR_GOOGLE_SPREADSHEET_ID' }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "EXPENSES" },
+        "options": {}
+      },
+      "id": "read-exp-daily-001",
+      "name": "Read Expenses for Daily Report",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [600, 1100],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GSHEETS_CRED_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $vars.SPREADSHEET_ID || 'YOUR_GOOGLE_SPREADSHEET_ID' }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "LORRY_ENTRIES" },
+        "options": {}
+      },
+      "id": "read-lorry-daily-001",
+      "name": "Read Lorry for Daily Report",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [820, 1100],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GSHEETS_CRED_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const allItems = $input.all();\nconst ledger = allItems.filter(i => i.json.entryId);\nconst expenses = allItems.filter(i => i.json.expenseType);\nconst lorries = allItems.filter(i => i.json.lorryNumber);\n\nconst periodType = $node[\"Daily Report Schedule\"] ? 'daily' : $node[\"Weekly Report Schedule\"] ? 'weekly' : 'monthly';\n\nconst today = new Date();\ntoday.setHours(0, 0, 0, 0);\nlet startDate, label;\n\nif (periodType === 'daily') {\n  startDate = today; label = today.toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });\n} else if (periodType === 'weekly') {\n  startDate = new Date(today); startDate.setDate(startDate.getDate() - 7);\n  label = 'This Week';\n} else {\n  startDate = new Date(today.getFullYear(), today.getMonth(), 1);\n  label = new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long' });\n}\n\nconst filterDate = (d) => new Date(d) >= startDate;\n\nconst fLedger = ledger.filter(i => filterDate(i.json.date));\nconst fExp = expenses.filter(i => filterDate(i.json.date));\nconst fLorry = lorries.filter(i => filterDate(i.json.date));\n\nconst cashIn = fLedger.filter(i => i.json.transactionType === 'credit').reduce((s, i) => s + Number(i.json.amount || 0), 0);\nconst cashOut = fLedger.filter(i => i.json.transactionType === 'debit').reduce((s, i) => s + Number(i.json.amount || 0), 0);\nconst totalExp = fExp.reduce((s, i) => s + Number(i.json.amount || 0), 0);\nconst profit = cashIn - cashOut - totalExp;\nconst paddyIn = fLorry.reduce((s, i) => s + Number(i.json.quantity || 0), 0);\nconst lorryCount = fLorry.length;\n\nconst fmt = (n) => '₹' + Number(n).toLocaleString('en-IN');\n\nconst periodLabel = periodType === 'daily' ? '📅 Daily' : periodType === 'weekly' ? '📆 Weekly' : '🗓 Monthly';\n\nconst text = `${periodLabel} Business Report\\n${label}\\n\\n` +\n  `💰 Cash In: ${fmt(cashIn)}\\n` +\n  `💸 Cash Out: ${fmt(cashOut)}\\n` +\n  `🧾 Expenses: ${fmt(totalExp)}\\n` +\n  `─────────────────\\n` +\n  `${profit >= 0 ? '📈 Net Profit' : '📉 Net Loss'}: ${fmt(Math.abs(profit))}\\n\\n` +\n  `🚛 Lorries: ${lorryCount}\\n` +\n  `📦 Paddy: ${paddyIn} Quintals`;\n\nreturn { reportText: text, periodType };"
+      },
+      "id": "build-report-001",
+      "name": "Build Scheduled Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1040, 1100]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $vars.REPORT_CHAT_ID || 'YOUR_REPORT_CHAT_ID' }}",
+        "text": "={{ $json.reportText }}",
+        "additionalFields": {}
+      },
+      "id": "send-scheduled-report-001",
+      "name": "Send Scheduled Report",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1260, 1100],
+      "credentials": {
+        "telegramApi": {
+          "id": "LyGY6XkxiF5RKACL",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $vars.SPREADSHEET_ID || 'YOUR_GOOGLE_SPREADSHEET_ID' }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "LEDGER" },
+        "options": {}
+      },
+      "id": "read-ledger-weekly-001",
+      "name": "Read Ledger for Weekly Report",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [380, 1260],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GSHEETS_CRED_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $vars.SPREADSHEET_ID || 'YOUR_GOOGLE_SPREADSHEET_ID' }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "EXPENSES" },
+        "options": {}
+      },
+      "id": "read-exp-weekly-001",
+      "name": "Read Expenses for Weekly Report",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [600, 1260],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GSHEETS_CRED_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $vars.SPREADSHEET_ID || 'YOUR_GOOGLE_SPREADSHEET_ID' }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "LORRY_ENTRIES" },
+        "options": {}
+      },
+      "id": "read-lorry-weekly-001",
+      "name": "Read Lorry for Weekly Report",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [820, 1260],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GSHEETS_CRED_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const allItems = $input.all();\nconst ledger = allItems.filter(i => i.json.entryId);\nconst expenses = allItems.filter(i => i.json.expenseType);\nconst lorries = allItems.filter(i => i.json.lorryNumber);\n\nconst today = new Date();\nconst startDate = new Date(today); startDate.setDate(startDate.getDate() - 7); startDate.setHours(0,0,0,0);\nconst label = 'This Week';\n\nconst filterDate = (d) => new Date(d) >= startDate;\n\nconst fLedger = ledger.filter(i => filterDate(i.json.date));\nconst fExp = expenses.filter(i => filterDate(i.json.date));\nconst fLorry = lorries.filter(i => filterDate(i.json.date));\n\nconst cashIn = fLedger.filter(i => i.json.transactionType === 'credit').reduce((s, i) => s + Number(i.json.amount || 0), 0);\nconst cashOut = fLedger.filter(i => i.json.transactionType === 'debit').reduce((s, i) => s + Number(i.json.amount || 0), 0);\nconst totalExp = fExp.reduce((s, i) => s + Number(i.json.amount || 0), 0);\nconst profit = cashIn - cashOut - totalExp;\nconst paddyIn = fLorry.reduce((s, i) => s + Number(i.json.quantity || 0), 0);\nconst lorryCount = fLorry.length;\n\nconst partyGroups = {};\nfor (const l of fLorry) {\n  const p = l.json.fromParty || 'Unknown';\n  if (!partyGroups[p]) partyGroups[p] = 0;\n  partyGroups[p] += Number(l.json.quantity || 0);\n}\nconst topParties = Object.entries(partyGroups).sort((a, b) => b[1] - a[1]).slice(0, 3);\n\nconst fmt = (n) => '₹' + Number(n).toLocaleString('en-IN');\n\nlet text = `📆 Weekly Business Report\\n${label}\\n\\n`;\ntext += `💰 Cash In: ${fmt(cashIn)}\\n`;\ntext += `💸 Cash Out: ${fmt(cashOut)}\\n`;\ntext += `🧾 Expenses: ${fmt(totalExp)}\\n`;\ntext += `─────────────────\\n`;\ntext += `${profit >= 0 ? '📈 Net Profit' : '📉 Net Loss'}: ${fmt(Math.abs(profit))}\\n\\n`;\ntext += `🚛 Total Lorries: ${lorryCount}\\n`;\ntext += `📦 Total Paddy: ${paddyIn} Quintals`;\nif (topParties.length > 0) {\n  text += `\\n\\n🏆 Top Parties:\\n`;\n  topParties.forEach(([name, qty], i) => { text += `${i + 1}. ${name}: ${qty}Q\\n`; });\n}\n\nreturn { reportText: text };"
+      },
+      "id": "build-weekly-report-001",
+      "name": "Build Weekly Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1040, 1260]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $vars.REPORT_CHAT_ID || 'YOUR_REPORT_CHAT_ID' }}",
+        "text": "={{ $json.reportText }}",
+        "additionalFields": {}
+      },
+      "id": "send-weekly-report-001",
+      "name": "Send Weekly Report",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1260, 1260],
+      "credentials": {
+        "telegramApi": {
+          "id": "LyGY6XkxiF5RKACL",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $vars.SPREADSHEET_ID || 'YOUR_GOOGLE_SPREADSHEET_ID' }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "LEDGER" },
+        "options": {}
+      },
+      "id": "read-ledger-monthly-001",
+      "name": "Read Ledger for Monthly Report",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [380, 1420],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GSHEETS_CRED_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $vars.SPREADSHEET_ID || 'YOUR_GOOGLE_SPREADSHEET_ID' }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "EXPENSES" },
+        "options": {}
+      },
+      "id": "read-exp-monthly-001",
+      "name": "Read Expenses for Monthly Report",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [600, 1420],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GSHEETS_CRED_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $vars.SPREADSHEET_ID || 'YOUR_GOOGLE_SPREADSHEET_ID' }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "LORRY_ENTRIES" },
+        "options": {}
+      },
+      "id": "read-lorry-monthly-001",
+      "name": "Read Lorry for Monthly Report",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [820, 1420],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GSHEETS_CRED_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const allItems = $input.all();\nconst ledger = allItems.filter(i => i.json.entryId);\nconst expenses = allItems.filter(i => i.json.expenseType);\nconst lorries = allItems.filter(i => i.json.lorryNumber);\n\nconst today = new Date();\nconst startDate = new Date(today.getFullYear(), today.getMonth(), 1);\nconst monthName = today.toLocaleDateString('en-IN', { year: 'numeric', month: 'long' });\n\nconst filterDate = (d) => new Date(d) >= startDate;\n\nconst fLedger = ledger.filter(i => filterDate(i.json.date));\nconst fExp = expenses.filter(i => filterDate(i.json.date));\nconst fLorry = lorries.filter(i => filterDate(i.json.date));\n\nconst cashIn = fLedger.filter(i => i.json.transactionType === 'credit').reduce((s, i) => s + Number(i.json.amount || 0), 0);\nconst cashOut = fLedger.filter(i => i.json.transactionType === 'debit').reduce((s, i) => s + Number(i.json.amount || 0), 0);\nconst totalExp = fExp.reduce((s, i) => s + Number(i.json.amount || 0), 0);\nconst profit = cashIn - cashOut - totalExp;\nconst paddyIn = fLorry.reduce((s, i) => s + Number(i.json.quantity || 0), 0);\nconst lorryCount = fLorry.length;\n\nconst expByType = {};\nfor (const e of fExp) {\n  const t = e.json.expenseType || 'other';\n  if (!expByType[t]) expByType[t] = 0;\n  expByType[t] += Number(e.json.amount || 0);\n}\n\nconst millGroups = {};\nfor (const l of fLorry) {\n  const m = l.json.toMill || 'Unknown';\n  if (!millGroups[m]) millGroups[m] = 0;\n  millGroups[m] += Number(l.json.quantity || 0);\n}\nconst topMills = Object.entries(millGroups).sort((a, b) => b[1] - a[1]).slice(0, 3);\n\nconst fmt = (n) => '₹' + Number(n).toLocaleString('en-IN');\n\nlet text = `🗓 Monthly Business Report\\n${monthName}\\n\\n`;\ntext += `💰 Cash In: ${fmt(cashIn)}\\n`;\ntext += `💸 Cash Out: ${fmt(cashOut)}\\n`;\ntext += `🧾 Total Expenses: ${fmt(totalExp)}\\n`;\ntext += `─────────────────\\n`;\ntext += `${profit >= 0 ? '📈 Net Profit' : '📉 Net Loss'}: ${fmt(Math.abs(profit))}\\n\\n`;\ntext += `🚛 Total Lorries: ${lorryCount}\\n`;\ntext += `📦 Total Paddy: ${paddyIn} Quintals\\n`;\nif (Object.keys(expByType).length > 0) {\n  text += `\\n🧾 Expense Breakdown:\\n`;\n  Object.entries(expByType).forEach(([type, amt]) => { text += `  ${type}: ${fmt(amt)}\\n`; });\n}\nif (topMills.length > 0) {\n  text += `\\n🏭 Top Mills:\\n`;\n  topMills.forEach(([name, qty], i) => { text += `${i + 1}. ${name}: ${qty}Q\\n`; });\n}\n\nreturn { reportText: text };"
+      },
+      "id": "build-monthly-report-001",
+      "name": "Build Monthly Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1040, 1420]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $vars.REPORT_CHAT_ID || 'YOUR_REPORT_CHAT_ID' }}",
+        "text": "={{ $json.reportText }}",
+        "additionalFields": {}
+      },
+      "id": "send-monthly-report-001",
+      "name": "Send Monthly Report",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1260, 1420],
+      "credentials": {
+        "telegramApi": {
+          "id": "LyGY6XkxiF5RKACL",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Telegram Webhook": {
+      "main": [[{ "node": "Workflow Configuration", "type": "main", "index": 0 }]]
+    },
+    "Workflow Configuration": {
+      "main": [[{ "node": "Parse & Classify Message", "type": "main", "index": 0 }]]
+    },
+    "Parse & Classify Message": {
+      "main": [[{ "node": "Route by Message Type", "type": "main", "index": 0 }]]
+    },
+    "Route by Message Type": {
+      "main": [
+        [{ "node": "AI Agent - Extract Lorry Entry", "type": "main", "index": 0 }],
+        [{ "node": "AI Agent - Extract Cash Entry", "type": "main", "index": 0 }],
+        [{ "node": "Extract Mill Patti PDF", "type": "main", "index": 0 }],
+        [{ "node": "Extract Party Name", "type": "main", "index": 0 }],
+        [{ "node": "Extract Mill Name", "type": "main", "index": 0 }],
+        [{ "node": "AI Agent - Extract Expense", "type": "main", "index": 0 }],
+        [{ "node": "Read Ledger for Profit", "type": "main", "index": 0 }],
+        [{ "node": "Read Ledger for Balance", "type": "main", "index": 0 }],
+        [{ "node": "Read All Data for Query", "type": "main", "index": 0 }]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [[
+        { "node": "AI Agent - Extract Lorry Entry", "type": "ai_languageModel", "index": 0 },
+        { "node": "AI Agent - Extract Cash Entry", "type": "ai_languageModel", "index": 0 },
+        { "node": "AI Agent - Process Mill Patti", "type": "ai_languageModel", "index": 0 },
+        { "node": "AI Agent - Extract Expense", "type": "ai_languageModel", "index": 0 },
+        { "node": "AI Agent - Answer Query", "type": "ai_languageModel", "index": 0 }
+      ]]
+    },
+    "Conversation Memory": {
+      "ai_memory": [[
+        { "node": "AI Agent - Extract Lorry Entry", "type": "ai_memory", "index": 0 },
+        { "node": "AI Agent - Extract Cash Entry", "type": "ai_memory", "index": 0 },
+        { "node": "AI Agent - Process Mill Patti", "type": "ai_memory", "index": 0 },
+        { "node": "AI Agent - Extract Expense", "type": "ai_memory", "index": 0 },
+        { "node": "AI Agent - Answer Query", "type": "ai_memory", "index": 0 }
+      ]]
+    },
+    "Structured Output Parser - Lorry": {
+      "ai_outputParser": [[{ "node": "AI Agent - Extract Lorry Entry", "type": "ai_outputParser", "index": 0 }]]
+    },
+    "Structured Output Parser - Cash": {
+      "ai_outputParser": [[{ "node": "AI Agent - Extract Cash Entry", "type": "ai_outputParser", "index": 0 }]]
+    },
+    "Structured Output Parser - Mill Patti": {
+      "ai_outputParser": [[{ "node": "AI Agent - Process Mill Patti", "type": "ai_outputParser", "index": 0 }]]
+    },
+    "Structured Output Parser - Expense": {
+      "ai_outputParser": [[{ "node": "AI Agent - Extract Expense", "type": "ai_outputParser", "index": 0 }]]
+    },
+    "AI Agent - Extract Lorry Entry": {
+      "main": [[{ "node": "Store Lorry Entry", "type": "main", "index": 0 }]]
+    },
+    "Store Lorry Entry": {
+      "main": [[{ "node": "Send Lorry Confirmation", "type": "main", "index": 0 }]]
+    },
+    "AI Agent - Extract Cash Entry": {
+      "main": [[{ "node": "Structured Output Parser - Cash", "type": "main", "index": 0 }]]
+    },
+    "Map Cash to Ledger": {
+      "main": [[{ "node": "Store Cash in Ledger", "type": "main", "index": 0 }]]
+    },
+    "Store Cash in Ledger": {
+      "main": [[{ "node": "Read Parties for Balance Update", "type": "main", "index": 0 }]]
+    },
+    "Read Parties for Balance Update": {
+      "main": [[{ "node": "Send Cash Confirmation", "type": "main", "index": 0 }]]
+    },
+    "Extract Mill Patti PDF": {
+      "main": [[{ "node": "AI Agent - Process Mill Patti", "type": "main", "index": 0 }]]
+    },
+    "AI Agent - Process Mill Patti": {
+      "main": [[{ "node": "Process Mill Patti Rows", "type": "main", "index": 0 }]]
+    },
+    "Process Mill Patti Rows": {
+      "main": [
+        [{ "node": "Store Mill Patti Data", "type": "main", "index": 0 }],
+        [{ "node": "Store Patti Ledger Entry", "type": "main", "index": 0 }]
+      ]
+    },
+    "Store Mill Patti Data": {
+      "main": [[{ "node": "Send Mill Patti Confirmation", "type": "main", "index": 0 }]]
+    },
+    "Store Patti Ledger Entry": {
+      "main": []
+    },
+    "Extract Party Name": {
+      "main": [[{ "node": "Store New Party", "type": "main", "index": 0 }]]
+    },
+    "Store New Party": {
+      "main": [[{ "node": "Send Party Confirmation", "type": "main", "index": 0 }]]
+    },
+    "Extract Mill Name": {
+      "main": [[{ "node": "Store New Mill", "type": "main", "index": 0 }]]
+    },
+    "Store New Mill": {
+      "main": [[{ "node": "Send Mill Confirmation", "type": "main", "index": 0 }]]
+    },
+    "AI Agent - Extract Expense": {
+      "main": [[{ "node": "Store Expense", "type": "main", "index": 0 }]]
+    },
+    "Store Expense": {
+      "main": [[{ "node": "Store Expense in Ledger", "type": "main", "index": 0 }]]
+    },
+    "Store Expense in Ledger": {
+      "main": [[{ "node": "Send Expense Confirmation", "type": "main", "index": 0 }]]
+    },
+    "Read Ledger for Profit": {
+      "main": [[{ "node": "Read Expenses for Profit", "type": "main", "index": 0 }]]
+    },
+    "Read Expenses for Profit": {
+      "main": [[{ "node": "Calculate Profit", "type": "main", "index": 0 }]]
+    },
+    "Calculate Profit": {
+      "main": [[{ "node": "Send Profit Report", "type": "main", "index": 0 }]]
+    },
+    "Read Ledger for Balance": {
+      "main": [[{ "node": "Calculate Balance", "type": "main", "index": 0 }]]
+    },
+    "Calculate Balance": {
+      "main": [[{ "node": "Format Balance Report", "type": "main", "index": 0 }]]
+    },
+    "Format Balance Report": {
+      "main": [[{ "node": "Send Balance Report", "type": "main", "index": 0 }]]
+    },
+    "Read All Data for Query": {
+      "main": [[{ "node": "Read Lorry Data for Query", "type": "main", "index": 0 }]]
+    },
+    "Read Lorry Data for Query": {
+      "main": [[{ "node": "AI Agent - Answer Query", "type": "main", "index": 0 }]]
+    },
+    "AI Agent - Answer Query": {
+      "main": [[{ "node": "Send Query Response", "type": "main", "index": 0 }]]
+    },
+    "Daily Report Schedule": {
+      "main": [[{ "node": "Read Ledger for Daily Report", "type": "main", "index": 0 }]]
+    },
+    "Read Ledger for Daily Report": {
+      "main": [[{ "node": "Read Expenses for Daily Report", "type": "main", "index": 0 }]]
+    },
+    "Read Expenses for Daily Report": {
+      "main": [[{ "node": "Read Lorry for Daily Report", "type": "main", "index": 0 }]]
+    },
+    "Read Lorry for Daily Report": {
+      "main": [[{ "node": "Build Scheduled Report", "type": "main", "index": 0 }]]
+    },
+    "Build Scheduled Report": {
+      "main": [[{ "node": "Send Scheduled Report", "type": "main", "index": 0 }]]
+    },
+    "Weekly Report Schedule": {
+      "main": [[{ "node": "Read Ledger for Weekly Report", "type": "main", "index": 0 }]]
+    },
+    "Read Ledger for Weekly Report": {
+      "main": [[{ "node": "Read Expenses for Weekly Report", "type": "main", "index": 0 }]]
+    },
+    "Read Expenses for Weekly Report": {
+      "main": [[{ "node": "Read Lorry for Weekly Report", "type": "main", "index": 0 }]]
+    },
+    "Read Lorry for Weekly Report": {
+      "main": [[{ "node": "Build Weekly Report", "type": "main", "index": 0 }]]
+    },
+    "Build Weekly Report": {
+      "main": [[{ "node": "Send Weekly Report", "type": "main", "index": 0 }]]
+    },
+    "Monthly Report Schedule": {
+      "main": [[{ "node": "Read Ledger for Monthly Report", "type": "main", "index": 0 }]]
+    },
+    "Read Ledger for Monthly Report": {
+      "main": [[{ "node": "Read Expenses for Monthly Report", "type": "main", "index": 0 }]]
+    },
+    "Read Expenses for Monthly Report": {
+      "main": [[{ "node": "Read Lorry for Monthly Report", "type": "main", "index": 0 }]]
+    },
+    "Read Lorry for Monthly Report": {
+      "main": [[{ "node": "Build Monthly Report", "type": "main", "index": 0 }]]
+    },
+    "Build Monthly Report": {
+      "main": [[{ "node": "Send Monthly Report", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "182eeabb-d108-458d-85c4-07b3dee597a4",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "65ae6af31cb23dc8d9e40f79be161403f78299cf3e641b4f7ee4ca7669530cce"
+  },
+  "id": "1Fs7p5CTbgt4fOWUp8pYG",
+  "tags": []
+}
