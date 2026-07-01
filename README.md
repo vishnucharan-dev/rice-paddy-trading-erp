@@ -118,50 +118,33 @@ rice-paddy-trading-erp
 
 README.md
 
-rice-paddy-trading-erp.json
+json  (Erp-accounting-system.json)
 
 screenshots/
-    workflow-overview.jpg
-    ledger.jpg
-    reports.jpg
-    telegram.jpg
+   (Erp-workflow-overview.png)
+(system-architecture.png)
+(system-output.png)
 
 demo.mp4
-```
+(workflow_demo.mov)
 
 ---
 
 # 📸 Screenshots
 
 ## Complete Workflow
+(Erp-workflow-overview.png)
 
-![Workflow](screenshots/workflow-overview.jpg)
 
----
 
-## Ledger Automation
-
-![Ledger](screenshots/ledger.jpg)
-
----
-
-## Reports
-
-![Reports](screenshots/reports.jpg)
-
----
-
-## Telegram Integration
-
-![Telegram](screenshots/telegram.jpg)
 
 ---
 
 # 🎥 Demo Video
 
 A complete demonstration video of the ERP system is included in this repository.
+(workflow_demo.mov)
 
----
 
 # 💼 Real Business Use Case
 
